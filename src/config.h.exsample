@@ -1,0 +1,8 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+static constexpr const char* SECRET_SSID="your-ssid";
+static constexpr const char* SECRET_PASSWORD="your-password";
+
+static constexpr const char* DISCORD_WEBHOOK="your-discord-webhook-url";
+#endif
