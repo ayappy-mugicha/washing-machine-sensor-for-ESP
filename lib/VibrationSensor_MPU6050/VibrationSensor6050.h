@@ -4,14 +4,24 @@
 #include <Arduino.h>
 #include "MPU6050.h"
 
-struct WasherStatus 
+struct WasherStatus
 {
     float x;
     float y;
     float z;
     float intensity;
+    bool ok;
 };
 
+struct VibrationWindow
+{
+    bool ok;
+    float rms;
+    float meanRaw;
+    float peak;
+    float lastY;
+    int successCount;
+};
 
 class VibrationSensor6050 {
 public:
@@ -22,7 +32,10 @@ public:
     float getIntensity();
     float offset();
     bool end();
+    bool readRawAccel(float& x, float& y, float& z);
     WasherStatus getcombinedData();
+    VibrationWindow sampleWindow(float offsetIntensity, int count, int intervalMs);
+    static float intensityFrom(float x, float y, float z);
 private:
     MPU6050 _accel;
 };

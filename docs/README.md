@@ -18,15 +18,19 @@ pio run -t upload               # 書き込み
 pio device monitor              # シリアル 115200
 ```
 
-`test/` にユニットテストはまだありません。
+判定ロジックの native テスト:
+
+```bash
+pio test -e native
+```
 
 ## 使い方
 
 1. センサーを洗濯機に固定し、電源を入れる。
 2. 初回起動時だけ Discord に「接続完了!お洗濯をしてるか見るね!」が飛ぶ。
-3. 以降はタイマー起床ごとに振動を測る。洗濯開始・終了そのものの Discord 通知は `setup()` 内でコメントアウトされており、**送信しない**。
-4. 振動が閾値未満のまま `STOP_LIMIT` 回続くと洗濯終了とみなし、スヌーズ待ちに入る。ドア（Y 軸）が開くまで干し忘れを通知する。
-5. 洗濯中でないとき、JST の 18 時以降〜8 時前は「おねんねするねまた明日!!」を送って翌朝まで寝る。
+3. 以降はタイマー起床ごとに約 3 秒の振動窓（RMS）を測る。洗濯開始・終了そのものの Discord 通知は送らない。
+4. 開始は `START_TH` 超過が連続 `START_CONFIRM` 回、終了は最短運転時間のあと `STOP_TH` 未満が `MIN_QUIET_SEC` 続いたときだけ確定する。確定後、ドア（Y 軸）が開くまで干し忘れを通知する。
+5. アイドルのとき、JST の 18 時以降〜8 時前は「おねんねするねまた明日!!」を送って翌朝まで寝る。
 
 ## 設定
 
@@ -37,22 +41,25 @@ pio device monitor              # シリアル 115200
 | `DISCORD_WEBHOOK` | はい | （config.h） | Discord Incoming Webhook |
 | `NTP_SERVER` | いいえ | `ntp.nict.jp` | NTP |
 | `UTC` | いいえ | `9 * 3600` | JST オフセット（秒） |
-| `THRESHOLD` | いいえ | `0.70` | 洗濯中とみなす振動（オフセット差分） |
-| `STOP_LIMIT` | いいえ | `3` | 終了とみなす連続静穏回数 |
+| `START_TH` | いいえ | `0.90` | 開始とみなす窓 RMS（オフセット差分） |
+| `STOP_TH` | いいえ | `0.40` | 終了候補とみなす窓 RMS |
+| `START_CONFIRM` | いいえ | `2` | 開始確定に必要な連続起床回数 |
+| `MIN_WASH_SEC` | いいえ | `1500` | 終了判定を開始するまでの最短運転（25 分） |
+| `MIN_QUIET_SEC` | いいえ | `720` | 終了確定に必要な連続静穏（12 分） |
 | `opendoor` | いいえ | `7.0` | ドア開とみなす Y 軸（要調整） |
 | `STERT_HOUR` | いいえ | `8` | 夜間スリープの起床時刻 |
 | `END_HOUR` | いいえ | `18` | 夜間スリープ開始時刻 |
-| スヌーズ間隔 | いいえ | `1800000` ms | 干し忘れ再通知（30 分） |
+| スヌーズ間隔 | いいえ | `1800` 秒 | 干し忘れ再通知（RTC 単調秒、30 分） |
+| 振動窓 | いいえ | 60 × 50 ms | 約 3 秒の RMS / 平均 / ピーク |
 | `BATT_ADC_PIN` | — | `A3` | バッテリ ADC。`getBatteryVoltage()` はあるが Discord には載せていない |
 
-ディープスリープ秒数（コード引数。コメントの「10min」等は一致しない）:
+ディープスリープ秒数:
 
 | 条件 | 秒 |
 |------|----|
-| 洗濯中（動いている / まだ終了判定前の静穏） | 300 |
-| アイドルから洗濯開始を検出した直後 | 1200 |
+| 洗濯中（運転中 / 終了候補の静穏） | 300 |
+| アイドル・スヌーズ待ち | 300 |
 | ドア開でスヌーズ解除した直後 | 3600 |
-| それ以外のアイドル | 300 |
 | 夜間 | `STERT_HOUR` までの時間（時間単位） |
 
 ## 実行モデル
@@ -61,18 +68,18 @@ pio device monitor              # シリアル 115200
 
 RTC メモリでディープスリープをまたぐ状態:
 
-- `currentState` … 洗濯中なら `true`
-- `stopCount` … 静穏連続回数
-- `waitingForSnooze` … 干し忘れ待ち
-- `finishTime` … 終了（または前回リマインド）時刻（`millis()`）
+- `washerPhase` … Idle / Washing / FinishCandidate / SnoozeWait
+- `startCount` … 開始確定用の連続超過回数
+- `washStartSec` / `quietSinceSec` / `finishTimeSec` … RTC 単調秒上の時刻
+- `monotonicSec` … 睡眠秒を加算した単調時計（`millis()` は使わない）
 - `bootCount` … 初回挨拶済み
-- `offsetIntencity` … 振動ベースライン
+- `offsetIntencity` / `offsetValid` … アイドル時だけ更新する振動ベースライン
 
-振動量は `intensity = |x| + |y| + |z - 9.8|` からオフセットを引いた絶対値です。
+振動量は各サンプルの `intensity = |x| + |y| + |z - 9.8|` からオフセットを引いた残差の RMS です。オフセットは初回とアイドル確定時だけ更新し、洗濯中は固定します。判定は `lib/WasherJudge` に切り出しています。
 
 Discord の見た目は `## 洗濯機君からのお知らせ!!` と diff コードブロック（`status == true` なら `+`、`false` なら `-`）。HTTPS は `WiFiClientSecure::setInsecure()`（証明書ピン留めなし）。
 
-未実装・動かないもの: バッテリ電圧の Discord 埋め込み、`getApbFrequency()`（`waikeup` から呼ばれるがこのリポジトリに定義がない）、`lib/sensorcheck`（インスタンス化のみ）。
+未実装・動かないもの: バッテリ電圧の Discord 埋め込み、`lib/sensorcheck`（インスタンス化のみ）。
 
 ## ユースケース図
 
@@ -117,20 +124,21 @@ flowchart LR
 
 ## 状態遷移図
 
-正式な enum はなく、RTC フラグから次の論理状態になる。夜間スリープは `waikeup()` で `currentState == false` のときだけ入る。
+`WasherPhase` を RTC に保持する。夜間スリープは `waikeup()` の `deepsleep()` が時刻だけで入り、アイドル時のログだけ出す。
 
 ```mermaid
 stateDiagram-v2
   [*] --> Idle: 電源投入 bootCount false
-  Idle --> Idle: intensity が THRESHOLD 以下 300秒睡眠
-  Idle --> Washing: intensity が THRESHOLD 超過
-  Washing --> Washing: 振動継続 stopCount を 0 に戻す 300秒睡眠
-  Washing --> Washing: 静穏だが stopCount が STOP_LIMIT 未満 300秒睡眠
-  Washing --> SnoozeWait: stopCount が STOP_LIMIT 以上
-  SnoozeWait --> SnoozeWait: ドア未開 必要ならリマインド
-  SnoozeWait --> Idle: Y が opendoor 超過 干した
-  Idle --> NightSleep: 時刻が END_HOUR 以降または STERT_HOUR より前
-  NightSleep --> Idle: タイマーで STERT_HOUR 相当に起床
+  Idle --> Idle: 窓RMSがSTART_TH以下 オフセット更新 300秒睡眠
+  Idle --> Washing: START_TH超過がSTART_CONFIRM回
+  Washing --> Washing: RMSがSTOP_TH以上、または最短運転時間未満
+  Washing --> FinishCandidate: 最短運転後 RMSがSTOP_TH未満
+  FinishCandidate --> Washing: RMSがSTOP_TH以上
+  FinishCandidate --> SnoozeWait: MIN_QUIET_SECの連続静穏
+  SnoozeWait --> SnoozeWait: ドア未開 1800秒経過でリマインド
+  SnoozeWait --> Idle: Yがopendoor超過 干した
+  Idle --> NightSleep: 時刻がEND_HOUR以降またはSTERT_HOURより前
+  NightSleep --> Idle: タイマーでSTERT_HOUR相当に起床
 ```
 
 ## シーケンス図
@@ -166,8 +174,9 @@ sequenceDiagram
   alt 初回起動
     ESP->>Discord: 接続完了!お洗濯をしてるか見るね!
   end
-  ESP->>MPU: offset と getcombinedData
-  ESP->>ESP: 洗濯判定
+  ESP->>MPU: 未校正なら offset、続いて sampleWindow
+  ESP->>ESP: WasherJudge step
+  ESP->>ESP: monotonicSec に睡眠秒を加算
   ESP->>ESP: gotosleep 指定秒
 ```
 
@@ -180,17 +189,17 @@ sequenceDiagram
   participant Discord as Discord
   participant User as 使用者
 
-  Note over ESP: 洗濯中に静穏が STOP_LIMIT 回
-  ESP->>ESP: currentState false waitingForSnooze true finishTime 更新
+  Note over ESP: 最短運転後に静穏が MIN_QUIET_SEC
+  ESP->>ESP: phase SnoozeWait finishTimeSec 更新
   ESP->>ESP: gotosleep 300
   loop スヌーズ待ちの起床
     ESP->>MPU: Y 軸
     alt Y が opendoor 超過
       ESP->>Discord: 洗濯物を干してくれたんだね!!ありがとう!!
       ESP->>ESP: waitingForSnooze false 3600秒睡眠
-    else 30分未経過
+    else 1800秒未経過
       ESP->>ESP: 通知せず 300秒睡眠
-    else 30分経過
+    else 1800秒経過
       ESP->>Discord: お洗濯は終わってるみたいだよ!洗濯物を干してね!
       ESP->>User: リマインド
       ESP->>ESP: finishTime 更新 300秒睡眠
@@ -223,11 +232,12 @@ sequenceDiagram
 
 | モジュール | パス | 役割 |
 |------------|------|------|
-| エントリ | `src/main.cpp` | 起床・判定・スヌーズ |
+| エントリ | `src/main.cpp` | 起床・センサ窓・判定の配線 |
+| 判定 | `lib/WasherJudge/` | 開始・終了・スヌーズ（Arduino 非依存） |
 | Discord | `lib/DiscordClient/` | Webhook POST |
 | Network | `lib/NetworkSystem/` | STA 接続・切断 |
 | Sleep | `lib/SleepMode/` | NTP、タイマー睡眠、夜間睡眠 |
-| Sensor | `lib/VibrationSensor_MPU6050/` | MPU6050 加速度 |
+| Sensor | `lib/VibrationSensor_MPU6050/` | MPU6050 加速度と窓サンプリング |
 | Check | `lib/sensorcheck/` | I2C 確認（main から未使用） |
 
 ## 開発

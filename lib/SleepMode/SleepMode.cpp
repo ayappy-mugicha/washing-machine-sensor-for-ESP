@@ -37,7 +37,7 @@ void SleepMode::gotosleep(int second){
     return;
 }
 
-bool SleepMode::deepsleep(int startHour, int endHour) {
+bool SleepMode::deepsleep(int startHour, int endHour, uint32_t* monotonicSec) {
     struct tm timeinfo;
     NetworkSystem network(SECRET_SSID, SECRET_PASSWORD); 
     DiscordClient Discord(DISCORD_WEBHOOK);
@@ -57,6 +57,9 @@ bool SleepMode::deepsleep(int startHour, int endHour) {
         } else {
             // 今日の朝6時まで
             sleepTimeSec = ( startHour - currentHour ) * 3600;
+        }
+        if (monotonicSec != nullptr) {
+            *monotonicSec += (uint32_t)sleepTimeSec;
         }
         network.disconnect_wifi();
         delay(100);
