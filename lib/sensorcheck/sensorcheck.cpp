@@ -5,6 +5,7 @@
 bool SensorCheck::begin () {
     Wire.begin();
     Serial.println("\nI2C Scanner starting");
+    return true;
 }
 
 void SensorCheck::getsensor () {

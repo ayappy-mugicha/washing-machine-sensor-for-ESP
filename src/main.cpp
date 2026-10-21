@@ -9,7 +9,11 @@
 
 const char* NTP_SERVER = "ntp.nict.jp"; // NTPサーバーのアドレス
 const long UTC = 9 * 3600; // 日本時間
+#if defined(A3)
 const int BATT_ADC_PIN = A3; // バッテリ残量を見るピン(あとで実装する)
+#else
+const int BATT_ADC_PIN = D3;
+#endif
 float getBatteryVoltage(); // バッテリー残量
 void waikeup(uint8_t phase); // 起床後の処理
 
@@ -88,8 +92,9 @@ void setup() {
     Discord.sendMessage("お洗濯は終わってるみたいだよ!洗濯物を干してね!", false);
   }
 
-  Serial.printf("phase=%u rms=%.3f offset=%.3f sleep=%u\n",
-                (unsigned)washerPhase, window.rms, offsetIntencity, result.sleepSec);
+  Serial.printf("phase=%u rms=%.3f offset=%.3f sleep=%lu\n",
+                (unsigned)washerPhase, window.rms, offsetIntencity,
+                (unsigned long)result.sleepSec);
 
   monotonicSec += result.sleepSec;
   sleepmodeobj.gotosleep((int)result.sleepSec);

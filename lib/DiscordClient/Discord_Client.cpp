@@ -1,5 +1,5 @@
 #include "Discord_Client.h"
-#include <HttpClient.h>
+#include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include "../NetworkSystem/NetworkSystem.h"
 #include "../../src/config.h"
