@@ -24,6 +24,14 @@ pio device monitor              # シリアル 115200
 pio test -e native
 ```
 
+文化祭デモ（手で揺らして開始・停止をすぐ Discord に送る）:
+
+```bash
+pio run -e demo               # ビルド
+pio run -e demo -t upload     # 書き込み
+pio device monitor            # シリアル 115200
+```
+
 ## 使い方
 
 1. センサーを洗濯機に固定し、電源を入れる。
@@ -61,6 +69,26 @@ pio test -e native
 | アイドル・スヌーズ待ち | 300 |
 | ドア開でスヌーズ解除した直後 | 3600 |
 | 夜間 | `STERT_HOUR` までの時間（時間単位） |
+
+## 文化祭 demo
+
+本番の洗濯判定・ディープスリープは使わず、ブースで MPU6050 を手で揺らして見せる別ビルドです。模擬洗濯機（マイクロモーター / ON-OFF）は未実装です。
+
+1. `src/config.h` に Wi-Fi と Discord Webhook を書く。
+2. `pio run -e demo -t upload` で書き込む。
+3. 電源を入れると Discord に「接続完了! 文化祭デモで振動を見るね!」が飛ぶ。
+4. センサーを軽く揺らすと「振動を検知したよ!」、止めると「振動が止まったよ!」が来る。何度でも繰り返せる。
+
+`loop()` で連続サンプリングし、Wi-Fi は切らない。夜間スリープ・ドア開・干し忘れスヌーズは無効。
+
+| 名前 | 値 | 説明 |
+|------|----|------|
+| 振動窓 | 20 × 50 ms | 約 1 秒の RMS |
+| `START_TH` | `0.25` | 1 窓で開始 |
+| `STOP_TH` | `0.15` | 連続 2 窓で停止 |
+| Discord `disconnectAfter` | `false` | 送信後も Wi-Fi 維持 |
+
+判定は `lib/DemoVibrationJudge`。本番 `WasherJudge` の定数は変えていない。
 
 ## 実行モデル
 
@@ -234,6 +262,8 @@ sequenceDiagram
 |------------|------|------|
 | エントリ | `src/main.cpp` | 起床・センサ窓・判定の配線 |
 | 判定 | `lib/WasherJudge/` | 開始・終了・スヌーズ（Arduino 非依存） |
+| 文化祭判定 | `lib/DemoVibrationJudge/` | 手振りの開始・停止（Arduino 非依存） |
+| 文化祭エントリ | `src/demo.cpp` | 連続サンプル。`pio run -e demo` |
 | Discord | `lib/DiscordClient/` | Webhook POST |
 | Network | `lib/NetworkSystem/` | STA 接続・切断 |
 | Sleep | `lib/SleepMode/` | NTP、タイマー睡眠、夜間睡眠 |

@@ -8,7 +8,7 @@ DiscordClient::DiscordClient (const char* url){
     _WebhookUrl = url;
 }
 
-void DiscordClient::sendMessage (String message , bool status) {
+void DiscordClient::sendMessage (String message , bool status, bool disconnectAfter) {
     HTTPClient http;
     WiFiClientSecure client;
     NetworkSystem network(SECRET_SSID, SECRET_PASSWORD);
@@ -36,7 +36,9 @@ void DiscordClient::sendMessage (String message , bool status) {
             else Serial.printf("\n can not send for Discord Responsecode: %d \n", httpResponseCode);
             http.end();
         }
-        network.disconnect_wifi();
+        if (disconnectAfter) {
+            network.disconnect_wifi();
+        }
     } else {
         Serial.println("Discordに送信できません。wifiに繋がっていません。再接続します");
         // sendmessage(message,status);
