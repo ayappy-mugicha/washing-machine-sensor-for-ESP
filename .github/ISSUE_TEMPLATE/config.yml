@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: セットアップと使い方
+    url: https://github.com/ayappy-mugicha/washing-machine-sensor-for-ESP/blob/main/docs/README.md
+    about: 付け方・設定・展示用デモは先にこちらを見てください。

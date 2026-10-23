@@ -1,0 +1,53 @@
+name: 使い方・セットアップ
+description: 付け方、Discord につながらない、展示の見せ方など
+title: "[質問] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        使い方の質問です。壊れていると分かっているときは「不具合・動かない」を選んでください。
+        **Wi-Fi のパスワードや Discord の Webhook URL は貼らないでください。**
+
+  - type: dropdown
+    id: stuck
+    attributes:
+      label: いま困っているところ
+      options:
+        - センサーの付け方
+        - Discord に知らせが来ない
+        - ドアを開けた判定（干した判定）が合わない
+        - 展示用デモの見せ方
+        - プログラムの書き込み（開発している人向け）
+        - その他
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: やったこと
+      placeholder: 例）電源を入れた。Discord を見たが何も来なかった。
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: 聞きたいこと
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 開発者向けメモ（任意）
+      description: 画面やシリアルに出た文字、ビルドのエラーなど。パスワードや Webhook が写っていたら消してください。
+
+  - type: checkboxes
+    id: secrets
+    attributes:
+      label: 確認
+      options:
+        - label: 秘密情報を貼っていない
+          required: true
