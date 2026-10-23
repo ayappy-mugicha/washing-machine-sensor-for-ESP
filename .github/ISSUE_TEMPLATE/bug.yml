@@ -1,0 +1,108 @@
+name: 不具合・動かない
+description: 通知が来ない、間違って反応する、センサーが認識されないなど
+title: "[不具合] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        洗濯機君の不具合報告です。
+        **Wi-Fi の名前やパスワード、Discord の Webhook URL、`src/config.h` の中身は貼らないでください。**
+        使い方は [docs/README.md](https://github.com/ayappy-mugicha/washing-machine-sensor-for-ESP/blob/main/docs/README.md) にあります。
+
+  - type: dropdown
+    id: who
+    attributes:
+      label: あなたはどれに近いですか
+      options:
+        - 使う側（開発はしていない）
+        - 自分でプログラムを書き込んでいる
+        - 展示用デモを使っている
+        - わからない
+    validations:
+      required: true
+
+  - type: dropdown
+    id: env
+    attributes:
+      label: どちらの動きですか
+      options:
+        - いつもどおりの使い方（本番）
+        - 展示用デモ
+        - わからない
+    validations:
+      required: true
+
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: いちばん近い症状
+      multiple: true
+      options:
+        - Discord に何も来ない
+        - 最初の「接続完了」が来ない / 来る
+        - 「センサーがつながってないよ!!!」が来る
+        - 「ごめんね。時刻がわからなかったよ」が来る
+        - 洗濯していないのに反応する
+        - 洗濯しているのに反応しない
+        - 洗濯が終わっても「干してね」が来ない
+        - 干したのに知らせが止まらない
+        - 夜の「おねんねするねまた明日!!」がおかしい
+        - 展示用デモで揺らしても「振動を検知したよ!」が来ない
+        - その他
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: こうなってほしい
+      placeholder: 例）洗濯が終わったら Discord に「干してね」と来てほしい
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 実際に起きたこと
+      placeholder: 例）終わって1時間たっても何も来ない。最初の接続完了だけ来た。
+    validations:
+      required: true
+
+  - type: textarea
+    id: discord
+    attributes:
+      label: Discord に出た言葉（秘密は貼らない）
+      description: メッセージの文言だけで十分です。URL は不要です。
+      placeholder: 例）センサーがつながってないよ!!!
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: やったこと
+      description: 電源を入れた、洗濯した、ドアを開けた、など、そのときしたことを書いてください。
+      placeholder: |
+        例）
+        朝、電源を入れた
+        昼ごろ洗濯した
+        終わっても Discord に「干してね」が来なかった
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 開発者向けメモ（任意）
+      description: シリアル（115200）、ビルドのエラー、変えた数値（START_TH / STOP_TH / opendoor など）があれば。パスワードや Webhook は貼らないでください。
+
+  - type: checkboxes
+    id: secrets
+    attributes:
+      label: 確認
+      options:
+        - label: Wi-Fi パスワードと Discord Webhook URL を貼っていない
+          required: true

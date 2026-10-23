@@ -1,0 +1,43 @@
+name: 機能の提案
+description: 新しい知らせ方や判定など、こうなるとよいというアイデア
+title: "[提案] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        先に [docs/README.md](https://github.com/ayappy-mugicha/washing-machine-sensor-for-ESP/blob/main/docs/README.md) を見られる人は、「未実装・動かないもの」も確認してください。
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: どのあたりの話ですか
+      options:
+        - Discord の知らせ
+        - 洗濯している／終わったの判定
+        - 干し忘れ・ドアを開けた判定
+        - 夜ねる動き
+        - 展示用デモ
+        - その他
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: いま困っていること・欲しい理由
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: こうなるとよい
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 開発者向けメモ（任意）
+      description: 自分で試したこと（取り付け位置を変えた、数値を変えた、など）があれば。
