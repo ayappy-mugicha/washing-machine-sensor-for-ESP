@@ -1,6 +1,7 @@
 #ifndef WASHER_JUDGE_H
 #define WASHER_JUDGE_H
 
+#include <math.h>
 #include <stdint.h>
 
 enum WasherPhase : uint8_t {
@@ -26,6 +27,7 @@ struct WasherJudgeConfig {
   uint32_t sleepIdleSec;
   uint32_t sleepWashingSec;
   uint32_t sleepAfterDoorSec;
+  float openDoorDeg;
 };
 
 struct WasherJudgeState {
@@ -40,7 +42,9 @@ struct WindowStats {
   bool ok;
   float rms;
   float peak;
-  float lastY;
+  float tiltDeg;
+  int sampleCount;
+  int openCount;
 };
 
 struct WasherJudgeResult {
@@ -49,6 +53,16 @@ struct WasherJudgeResult {
   bool updateOffset;
   uint8_t action;
 };
+
+inline float washerTiltDeg(float x, float y, float z) {
+  const float horizontal = sqrtf((x * x) + (y * y));
+  return atan2f(horizontal, z) * 57.2957795f;
+}
+
+inline bool washerDoorOpen(const WindowStats& window) {
+  return window.ok && window.sampleCount > 0 &&
+         (window.openCount * 2) > window.sampleCount;
+}
 
 inline WasherJudgeConfig washerJudgeDefaultConfig() {
   WasherJudgeConfig cfg;
@@ -61,6 +75,7 @@ inline WasherJudgeConfig washerJudgeDefaultConfig() {
   cfg.sleepIdleSec = 300u;
   cfg.sleepWashingSec = 300u;
   cfg.sleepAfterDoorSec = 3600u;
+  cfg.openDoorDeg = 30.0f;
   return cfg;
 }
 
@@ -69,7 +84,6 @@ public:
   static WasherJudgeResult step(const WasherJudgeState& state,
                                 const WindowStats& window,
                                 uint32_t monotonicSec,
-                                bool doorOpen,
                                 const WasherJudgeConfig& cfg);
 };
 

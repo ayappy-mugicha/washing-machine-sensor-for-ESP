@@ -4,10 +4,18 @@ static bool elapsedAtLeast(uint32_t now, uint32_t then, uint32_t need) {
   return now >= then && (now - then) >= need;
 }
 
+static void markHung(WasherJudgeResult& out, const WasherJudgeConfig& cfg) {
+  out.state.phase = WASHER_IDLE;
+  out.state.startCount = 0;
+  out.state.quietSinceSec = 0;
+  out.action = WASHER_ACTION_THANK_HUNG;
+  out.sleepSec = cfg.sleepAfterDoorSec;
+  out.updateOffset = false;
+}
+
 WasherJudgeResult WasherJudge::step(const WasherJudgeState& state,
                                     const WindowStats& window,
                                     uint32_t monotonicSec,
-                                    bool doorOpen,
                                     const WasherJudgeConfig& cfg) {
   WasherJudgeResult out;
   out.state = state;
@@ -16,13 +24,11 @@ WasherJudgeResult WasherJudge::step(const WasherJudgeState& state,
   out.action = WASHER_ACTION_NONE;
 
   if (state.phase == WASHER_SNOOZE_WAIT) {
-    if (doorOpen) {
-      out.state.phase = WASHER_IDLE;
-      out.state.startCount = 0;
-      out.state.quietSinceSec = 0;
-      out.action = WASHER_ACTION_THANK_HUNG;
-      out.sleepSec = cfg.sleepAfterDoorSec;
-      out.updateOffset = true;
+    if (!window.ok) {
+      return out;
+    }
+    if (washerDoorOpen(window)) {
+      markHung(out, cfg);
       return out;
     }
     if (elapsedAtLeast(monotonicSec, state.finishTimeSec, cfg.snoozeSec)) {
@@ -76,6 +82,10 @@ WasherJudgeResult WasherJudge::step(const WasherJudgeState& state,
   out.sleepSec = cfg.sleepWashingSec;
 
   if (elapsedAtLeast(monotonicSec, quietSince, cfg.minQuietSec)) {
+    if (washerDoorOpen(window)) {
+      markHung(out, cfg);
+      return out;
+    }
     out.state.phase = WASHER_SNOOZE_WAIT;
     out.state.finishTimeSec = monotonicSec;
     out.state.quietSinceSec = 0;

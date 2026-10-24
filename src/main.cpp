@@ -35,7 +35,6 @@ RTC_DATA_ATTR bool bootCount = false;
 RTC_DATA_ATTR float offsetIntencity = 0;
 RTC_DATA_ATTR bool offsetValid = false;
 
-const float opendoor = 7.0; // 洗濯機のドアが開いているとみなす角度(要調整)
 const int SELIAL_PORT = 115200; // シリアル通信の速度
 const int WINDOW_SAMPLES = 60;
 const int WINDOW_INTERVAL_MS = 50;
@@ -68,16 +67,18 @@ void setup() {
     offsetValid = true;
   }
 
-  VibrationWindow window = sensor.sampleWindow(offsetIntencity, WINDOW_SAMPLES, WINDOW_INTERVAL_MS);
+  const WasherJudgeConfig cfg = washerJudgeDefaultConfig();
+  VibrationWindow window = sensor.sampleWindow(offsetIntencity, WINDOW_SAMPLES, WINDOW_INTERVAL_MS,
+                                               cfg.openDoorDeg);
   WindowStats stats;
   stats.ok = window.ok;
   stats.rms = window.rms;
   stats.peak = window.peak;
-  stats.lastY = window.lastY;
+  stats.tiltDeg = window.tiltDeg;
+  stats.sampleCount = window.successCount;
+  stats.openCount = window.openCount;
 
-  const WasherJudgeConfig cfg = washerJudgeDefaultConfig();
-  const bool doorOpen = window.ok && window.lastY > opendoor;
-  WasherJudgeResult result = WasherJudge::step(loadJudgeState(), stats, monotonicSec, doorOpen, cfg);
+  WasherJudgeResult result = WasherJudge::step(loadJudgeState(), stats, monotonicSec, cfg);
 
   if (result.updateOffset && window.ok) {
     offsetIntencity = window.meanRaw;
@@ -92,9 +93,10 @@ void setup() {
     Discord.sendMessage("お洗濯は終わってるみたいだよ!洗濯物を干してね!", false);
   }
 
-  Serial.printf("phase=%u rms=%.3f offset=%.3f sleep=%lu\n",
-                (unsigned)washerPhase, window.rms, offsetIntencity,
-                (unsigned long)result.sleepSec);
+  Serial.printf("phase=%u rms=%.3f tilt=%.1f door=%d action=%u offset=%.3f sleep=%lu\n",
+                (unsigned)washerPhase, window.rms, window.tiltDeg,
+                washerDoorOpen(stats) ? 1 : 0, (unsigned)result.action,
+                offsetIntencity, (unsigned long)result.sleepSec);
 
   monotonicSec += result.sleepSec;
   sleepmodeobj.gotosleep((int)result.sleepSec);

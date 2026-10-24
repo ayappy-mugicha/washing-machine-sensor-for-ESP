@@ -1,4 +1,5 @@
 #include "VibrationSensor6050.h"
+#include <WasherJudge.h>
 #include <math.h>
 
 VibrationSensor6050::VibrationSensor6050() : _accel(0x68) { // 住所を指定
@@ -76,14 +77,34 @@ WasherStatus VibrationSensor6050::getcombinedData() {
     return data;
 }
 
-VibrationWindow VibrationSensor6050::sampleWindow(float offsetIntensity, int count, int intervalMs) {
+static const int kTiltStoreMax = 128;
+
+static float medianTilt(float* tilts, int count) {
+    for (int i = 1; i < count; i++) {
+        const float value = tilts[i];
+        int j = i;
+        while (j > 0 && tilts[j - 1] > value) {
+            tilts[j] = tilts[j - 1];
+            j--;
+        }
+        tilts[j] = value;
+    }
+    if ((count % 2) == 0) {
+        return 0.5f * (tilts[count / 2 - 1] + tilts[count / 2]);
+    }
+    return tilts[count / 2];
+}
+
+VibrationWindow VibrationSensor6050::sampleWindow(float offsetIntensity, int count, int intervalMs,
+                                                  float openDoorDeg) {
     VibrationWindow window;
     window.ok = false;
     window.rms = 0;
     window.meanRaw = 0;
     window.peak = 0;
-    window.lastY = 0;
+    window.tiltDeg = 0;
     window.successCount = 0;
+    window.openCount = 0;
     if (count <= 0) {
         return window;
     }
@@ -91,8 +112,10 @@ VibrationWindow VibrationSensor6050::sampleWindow(float offsetIntensity, int cou
     double sumRaw = 0;
     double sumSq = 0;
     float peak = 0;
-    float lastY = 0;
     int ok = 0;
+    int openCount = 0;
+    int stored = 0;
+    float tilts[kTiltStoreMax];
 
     for (int i = 0; i < count; i++) {
         float x = 0;
@@ -106,15 +129,25 @@ VibrationWindow VibrationSensor6050::sampleWindow(float offsetIntensity, int cou
             if (residual > peak) {
                 peak = residual;
             }
-            lastY = fabsf(y);
+            const float tilt = washerTiltDeg(x, y, z);
+            if (tilt >= openDoorDeg) {
+                openCount++;
+            }
+            if (stored < kTiltStoreMax) {
+                tilts[stored] = tilt;
+                stored++;
+            }
             ok++;
         }
         delay(intervalMs);
     }
 
     window.successCount = ok;
-    window.lastY = lastY;
+    window.openCount = openCount;
     window.peak = peak;
+    if (stored > 0) {
+        window.tiltDeg = medianTilt(tilts, stored);
+    }
     if (ok < (count + 1) / 2) {
         return window;
     }
