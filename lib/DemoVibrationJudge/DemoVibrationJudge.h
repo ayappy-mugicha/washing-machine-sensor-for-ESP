@@ -33,8 +33,8 @@ struct DemoVibrationResult {
 
 inline DemoVibrationConfig demoVibrationDefaultConfig() {
   DemoVibrationConfig cfg;
-  cfg.startThreshold = 0.25f;
-  cfg.stopThreshold = 0.15f;
+  cfg.startThreshold = 1.7f;
+  cfg.stopThreshold = 1.0f;
   cfg.stopConfirm = 2;
   return cfg;
 }
