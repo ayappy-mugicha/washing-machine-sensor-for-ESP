@@ -97,7 +97,7 @@ body:
     id: extra
     attributes:
       label: 開発者向けメモ（任意）
-      description: シリアル（115200）、ビルドのエラー、変えた数値（START_TH / STOP_TH / opendoor など）があれば。パスワードや Webhook は貼らないでください。
+      description: シリアル（115200）、ビルドのエラー、変えた数値（START_TH / STOP_TH / openDoorDeg など）があれば。パスワードや Webhook は貼らないでください。
 
   - type: checkboxes
     id: secrets

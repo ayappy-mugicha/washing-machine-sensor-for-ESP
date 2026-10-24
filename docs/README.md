@@ -37,7 +37,7 @@ pio device monitor            # シリアル 115200
 1. センサーを洗濯機に固定し、電源を入れる。
 2. 初回起動時だけ Discord に「接続完了!お洗濯をしてるか見るね!」が飛ぶ。
 3. 以降はタイマー起床ごとに約 3 秒の振動窓（RMS）を測る。洗濯開始・終了そのものの Discord 通知は送らない。
-4. 開始は `START_TH` 超過が連続 `START_CONFIRM` 回、終了は最短運転時間のあと `STOP_TH` 未満が `MIN_QUIET_SEC` 続いたときだけ確定する。確定後、ドア（Y 軸）が開くまで干し忘れを通知する。
+4. 開始は `START_TH` 超過が連続 `START_CONFIRM` 回、終了は最短運転時間のあと `STOP_TH` 未満が `MIN_QUIET_SEC` 続いたときだけ確定する。確定した時点で蓋が開いていれば干し済みにする。閉じていれば、窓の傾きが開蓋になるまで干し忘れを通知する。センサー窓の読み取りに失敗した起床では通知しない。
 5. アイドルのとき、JST の 18 時以降〜8 時前は「おねんねするねまた明日!!」を送って翌朝まで寝る。
 
 ## 設定
@@ -54,11 +54,11 @@ pio device monitor            # シリアル 115200
 | `START_CONFIRM` | いいえ | `2` | 開始確定に必要な連続起床回数 |
 | `MIN_WASH_SEC` | いいえ | `1500` | 終了判定を開始するまでの最短運転（25 分） |
 | `MIN_QUIET_SEC` | いいえ | `720` | 終了確定に必要な連続静穏（12 分） |
-| `opendoor` | いいえ | `7.0` | ドア開とみなす Y 軸（要調整） |
+| `openDoorDeg` | いいえ | `30` | 開蓋とみなす重力の傾き（度）。閉蓋時は Z が上。窓の成功サンプルの過半数でこの角度以上なら開蓋（要調整） |
 | `STERT_HOUR` | いいえ | `8` | 夜間スリープの起床時刻 |
 | `END_HOUR` | いいえ | `18` | 夜間スリープ開始時刻 |
 | スヌーズ間隔 | いいえ | `1800` 秒 | 干し忘れ再通知（RTC 単調秒、30 分） |
-| 振動窓 | いいえ | 60 × 50 ms | 約 3 秒の RMS / 平均 / ピーク |
+| 振動窓 | いいえ | 60 × 50 ms | 約 3 秒の RMS / 平均 / ピーク / 傾き |
 | `BATT_ADC_PIN` | — | `A3` | バッテリ ADC。`getBatteryVoltage()` はあるが Discord には載せていない |
 
 ディープスリープ秒数:
@@ -103,7 +103,7 @@ RTC メモリでディープスリープをまたぐ状態:
 - `bootCount` … 初回挨拶済み
 - `offsetIntencity` / `offsetValid` … アイドル時だけ更新する振動ベースライン
 
-振動量は各サンプルの `intensity = |x| + |y| + |z - 9.8|` からオフセットを引いた残差の RMS です。オフセットは初回とアイドル確定時だけ更新し、洗濯中は固定します。判定は `lib/WasherJudge` に切り出しています。
+振動量は各サンプルの `intensity = |x| + |y| + |z - 9.8|` からオフセットを引いた残差の RMS です。オフセットは初回とアイドル確定時だけ更新し、洗濯中と開蓋時は固定します。蓋の傾きは `atan2(hypot(x, y), z)` の度で、成功サンプルの過半数が `openDoorDeg` 以上なら開蓋です。判定は `lib/WasherJudge` に切り出しています。
 
 Discord の見た目は `## 洗濯機君からのお知らせ!!` と diff コードブロック（`status == true` なら `+`、`false` なら `-`）。HTTPS は `WiFiClientSecure::setInsecure()`（証明書ピン留めなし）。
 
@@ -162,9 +162,11 @@ stateDiagram-v2
   Washing --> Washing: RMSがSTOP_TH以上、または最短運転時間未満
   Washing --> FinishCandidate: 最短運転後 RMSがSTOP_TH未満
   FinishCandidate --> Washing: RMSがSTOP_TH以上
-  FinishCandidate --> SnoozeWait: MIN_QUIET_SECの連続静穏
-  SnoozeWait --> SnoozeWait: ドア未開 1800秒経過でリマインド
-  SnoozeWait --> Idle: Yがopendoor超過 干した
+  FinishCandidate --> SnoozeWait: MIN_QUIET_SECの連続静穏かつ蓋は閉
+  FinishCandidate --> Idle: MIN_QUIET_SECかつ傾きの過半数で開蓋
+  SnoozeWait --> SnoozeWait: 窓失敗は通知しない
+  SnoozeWait --> SnoozeWait: ドア閉かつ1800秒経過でリマインド
+  SnoozeWait --> Idle: 傾きの過半数で開蓋 干した
   Idle --> NightSleep: 時刻がEND_HOUR以降またはSTERT_HOURより前
   NightSleep --> Idle: タイマーでSTERT_HOUR相当に起床
 ```
@@ -218,13 +220,20 @@ sequenceDiagram
   participant User as 使用者
 
   Note over ESP: 最短運転後に静穏が MIN_QUIET_SEC
-  ESP->>ESP: phase SnoozeWait finishTimeSec 更新
-  ESP->>ESP: gotosleep 300
+  alt 傾きの過半数が openDoorDeg 以上
+    ESP->>Discord: 洗濯物を干してくれたんだね!!ありがとう!!
+    ESP->>ESP: Idle 3600秒睡眠 オフセットは更新しない
+  else 蓋は閉
+    ESP->>ESP: phase SnoozeWait finishTimeSec 更新
+    ESP->>ESP: gotosleep 300
+  end
   loop スヌーズ待ちの起床
-    ESP->>MPU: Y 軸
-    alt Y が opendoor 超過
+    ESP->>MPU: 窓の傾き
+    alt 窓の読み取り失敗
+      ESP->>ESP: 通知せず finishTime も更新しない
+    else 傾きの過半数が開蓋
       ESP->>Discord: 洗濯物を干してくれたんだね!!ありがとう!!
-      ESP->>ESP: waitingForSnooze false 3600秒睡眠
+      ESP->>ESP: Idle 3600秒睡眠 オフセットは更新しない
     else 1800秒未経過
       ESP->>ESP: 通知せず 300秒睡眠
     else 1800秒経過

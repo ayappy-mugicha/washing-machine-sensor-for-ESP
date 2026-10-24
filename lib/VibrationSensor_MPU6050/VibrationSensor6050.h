@@ -19,8 +19,9 @@ struct VibrationWindow
     float rms;
     float meanRaw;
     float peak;
-    float lastY;
+    float tiltDeg;
     int successCount;
+    int openCount;
 };
 
 class VibrationSensor6050 {
@@ -34,7 +35,8 @@ public:
     bool end();
     bool readRawAccel(float& x, float& y, float& z);
     WasherStatus getcombinedData();
-    VibrationWindow sampleWindow(float offsetIntensity, int count, int intervalMs);
+    VibrationWindow sampleWindow(float offsetIntensity, int count, int intervalMs,
+                                 float openDoorDeg = 30.0f);
     static float intensityFrom(float x, float y, float z);
 private:
     MPU6050 _accel;
