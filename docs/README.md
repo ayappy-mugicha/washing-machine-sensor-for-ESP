@@ -152,7 +152,7 @@ flowchart LR
 
 ## 状態遷移図
 
-`WasherPhase` を RTC に保持する。夜間スリープは `waikeup()` の `deepsleep()` が時刻だけで入り、アイドル時のログだけ出す。
+`WasherPhase` を RTC に保持する。夜間スリープはアイドルのときだけ入る。洗濯中・終了候補・スヌーズ待ちの 18 時以降は、干し忘れ判定を続けて 300 秒間隔で起きる。
 
 ```mermaid
 stateDiagram-v2

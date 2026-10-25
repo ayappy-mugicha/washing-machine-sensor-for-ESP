@@ -10,7 +10,7 @@ static DemoVibrationState idleState() {
 
 void test_idle_below_start_updates_offset() {
   const DemoVibrationConfig cfg = demoVibrationDefaultConfig();
-  DemoVibrationResult result = DemoVibrationJudge::step(idleState(), 0.10f, true, cfg);
+  DemoVibrationResult result = DemoVibrationJudge::step(idleState(), cfg.startThreshold - 0.1f, true, cfg);
   TEST_ASSERT_EQUAL_UINT8(DEMO_IDLE, result.state.phase);
   TEST_ASSERT_EQUAL_UINT8(DEMO_ACTION_NONE, result.action);
   TEST_ASSERT_TRUE(result.updateOffset);
@@ -18,7 +18,7 @@ void test_idle_below_start_updates_offset() {
 
 void test_one_window_starts() {
   const DemoVibrationConfig cfg = demoVibrationDefaultConfig();
-  DemoVibrationResult result = DemoVibrationJudge::step(idleState(), 0.40f, true, cfg);
+  DemoVibrationResult result = DemoVibrationJudge::step(idleState(), cfg.startThreshold + 0.1f, true, cfg);
   TEST_ASSERT_EQUAL_UINT8(DEMO_VIBRATING, result.state.phase);
   TEST_ASSERT_EQUAL_UINT8(DEMO_ACTION_START, result.action);
   TEST_ASSERT_EQUAL_INT(0, result.state.quietCount);
@@ -30,7 +30,7 @@ void test_one_quiet_window_does_not_stop() {
   DemoVibrationState state = idleState();
   state.phase = DEMO_VIBRATING;
 
-  DemoVibrationResult result = DemoVibrationJudge::step(state, 0.05f, true, cfg);
+  DemoVibrationResult result = DemoVibrationJudge::step(state, cfg.stopThreshold - 0.1f, true, cfg);
   TEST_ASSERT_EQUAL_UINT8(DEMO_VIBRATING, result.state.phase);
   TEST_ASSERT_EQUAL_INT(1, result.state.quietCount);
   TEST_ASSERT_EQUAL_UINT8(DEMO_ACTION_NONE, result.action);
@@ -41,8 +41,8 @@ void test_two_quiet_windows_stop() {
   DemoVibrationState state = idleState();
   state.phase = DEMO_VIBRATING;
 
-  DemoVibrationResult first = DemoVibrationJudge::step(state, 0.05f, true, cfg);
-  DemoVibrationResult second = DemoVibrationJudge::step(first.state, 0.05f, true, cfg);
+  DemoVibrationResult first = DemoVibrationJudge::step(state, cfg.stopThreshold - 0.1f, true, cfg);
+  DemoVibrationResult second = DemoVibrationJudge::step(first.state, cfg.stopThreshold - 0.1f, true, cfg);
   TEST_ASSERT_EQUAL_UINT8(DEMO_IDLE, second.state.phase);
   TEST_ASSERT_EQUAL_UINT8(DEMO_ACTION_STOP, second.action);
   TEST_ASSERT_EQUAL_INT(0, second.state.quietCount);
@@ -53,8 +53,8 @@ void test_vibration_resets_quiet_count() {
   DemoVibrationState state = idleState();
   state.phase = DEMO_VIBRATING;
 
-  DemoVibrationResult quiet = DemoVibrationJudge::step(state, 0.05f, true, cfg);
-  DemoVibrationResult shake = DemoVibrationJudge::step(quiet.state, 0.40f, true, cfg);
+  DemoVibrationResult quiet = DemoVibrationJudge::step(state, cfg.stopThreshold - 0.1f, true, cfg);
+  DemoVibrationResult shake = DemoVibrationJudge::step(quiet.state, cfg.stopThreshold, true, cfg);
   TEST_ASSERT_EQUAL_UINT8(DEMO_VIBRATING, shake.state.phase);
   TEST_ASSERT_EQUAL_INT(0, shake.state.quietCount);
   TEST_ASSERT_EQUAL_UINT8(DEMO_ACTION_NONE, shake.action);
@@ -65,9 +65,9 @@ void test_can_restart_after_stop() {
   DemoVibrationState state = idleState();
   state.phase = DEMO_VIBRATING;
 
-  DemoVibrationResult first = DemoVibrationJudge::step(state, 0.05f, true, cfg);
-  DemoVibrationResult stopped = DemoVibrationJudge::step(first.state, 0.05f, true, cfg);
-  DemoVibrationResult again = DemoVibrationJudge::step(stopped.state, 0.40f, true, cfg);
+  DemoVibrationResult first = DemoVibrationJudge::step(state, cfg.stopThreshold - 0.1f, true, cfg);
+  DemoVibrationResult stopped = DemoVibrationJudge::step(first.state, cfg.stopThreshold - 0.1f, true, cfg);
+  DemoVibrationResult again = DemoVibrationJudge::step(stopped.state, cfg.startThreshold + 0.1f, true, cfg);
   TEST_ASSERT_EQUAL_UINT8(DEMO_VIBRATING, again.state.phase);
   TEST_ASSERT_EQUAL_UINT8(DEMO_ACTION_START, again.action);
 }

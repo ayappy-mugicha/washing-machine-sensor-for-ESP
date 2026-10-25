@@ -8,42 +8,42 @@ DiscordClient::DiscordClient (const char* url){
     _WebhookUrl = url;
 }
 
-void DiscordClient::sendMessage (String message , bool status, bool disconnectAfter) {
+bool DiscordClient::sendMessage (String message , bool status, bool disconnectAfter) {
     HTTPClient http;
     WiFiClientSecure client;
     NetworkSystem network(SECRET_SSID, SECRET_PASSWORD);
 
-    if (network.connect_wifi()){
-        client.setInsecure();
-
-        String symbol = (status == true) ? "+":"-";
-        String payload = "## 洗濯機君からのお知らせ!! \\n";
-        payload += "```diff\\n";
-        payload += symbol + message + "\\n";
-        payload += "```";
-
-        Serial.println(payload);
-
-        if (http.begin(client, _WebhookUrl)) {
-            http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-            http.addHeader("Content-Type", "application/json");
-            String jsonPayload = "{\"content\": \"" + payload + "\"}";
-
-            Serial.printf("\n sending message for Discord %s",jsonPayload);
-            int httpResponseCode = http.POST(jsonPayload);
-
-            if (httpResponseCode > 0) Serial.printf("\n success! Responsecode: %d \n", httpResponseCode);
-            else Serial.printf("\n can not send for Discord Responsecode: %d \n", httpResponseCode);
-            http.end();
-        }
-        if (disconnectAfter) {
-            network.disconnect_wifi();
-        }
-    } else {
-        Serial.println("Discordに送信できません。wifiに繋がっていません。再接続します");
-        // sendmessage(message,status);
-        network.connect_wifi();
+    if (!network.connect_wifi()) {
+        Serial.println("Discordに送信できません。wifiに繋がっていません。");
+        return false;
     }
-    return;
 
+    client.setInsecure();
+
+    String symbol = (status == true) ? "+":"-";
+    String payload = "## 洗濯機君からのお知らせ!! \\n";
+    payload += "```diff\\n";
+    payload += symbol + message + "\\n";
+    payload += "```";
+
+    Serial.println(payload);
+
+    bool sent = false;
+    if (http.begin(client, _WebhookUrl)) {
+        http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+        http.addHeader("Content-Type", "application/json");
+        String jsonPayload = "{\"content\": \"" + payload + "\"}";
+
+        Serial.printf("\n sending message for Discord %s",jsonPayload);
+        int httpResponseCode = http.POST(jsonPayload);
+        sent = httpResponseCode >= 200 && httpResponseCode < 300;
+
+        if (sent) Serial.printf("\n success! Responsecode: %d \n", httpResponseCode);
+        else Serial.printf("\n can not send for Discord Responsecode: %d \n", httpResponseCode);
+        http.end();
+    }
+    if (disconnectAfter) {
+        network.disconnect_wifi();
+    }
+    return sent;
 }

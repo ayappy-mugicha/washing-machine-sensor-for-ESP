@@ -6,7 +6,7 @@ class DiscordClient {
 public:
     DiscordClient(const char* url);
 
-    void sendMessage(String message, bool status = true, bool disconnectAfter = true);
+    bool sendMessage(String message, bool status = true, bool disconnectAfter = true);
 
 private:
     const char* _WebhookUrl;

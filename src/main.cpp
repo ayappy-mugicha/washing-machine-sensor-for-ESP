@@ -6,6 +6,7 @@
 #include <sensorcheck.h> // lib/sensorcheck/sensorcheck.h
 #include <NetworkSystem.h> // lib/NetworkSystem/NetworkSystem.h
 #include <WasherJudge.h>
+#include <CyclePolicy.h>
 
 const char* NTP_SERVER = "ntp.nict.jp"; // NTPサーバーのアドレス
 const long UTC = 9 * 3600; // 日本時間
@@ -78,28 +79,32 @@ void setup() {
   stats.sampleCount = window.successCount;
   stats.openCount = window.openCount;
 
-  WasherJudgeResult result = WasherJudge::step(loadJudgeState(), stats, monotonicSec, cfg);
+  const WasherJudgeState previous = loadJudgeState();
+  WasherJudgeResult result = WasherJudge::step(previous, stats, monotonicSec, cfg);
 
   if (result.updateOffset && window.ok) {
     offsetIntencity = window.meanRaw;
     offsetValid = true;
   }
 
-  persistJudgeState(result.state);
-
+  bool sent = true;
   if (result.action == WASHER_ACTION_THANK_HUNG) {
-    Discord.sendMessage("洗濯物を干してくれたんだね!!ありがとう!!", true);
+    sent = Discord.sendMessage("洗濯物を干してくれたんだね!!ありがとう!!", true);
   } else if (result.action == WASHER_ACTION_REMIND_HANG) {
-    Discord.sendMessage("お洗濯は終わってるみたいだよ!洗濯物を干してね!", false);
+    sent = Discord.sendMessage("お洗濯は終わってるみたいだよ!洗濯物を干してね!", false);
   }
+
+  const NotifyCommit committed = commitNotify(
+      result.state, result.sleepSec, previous, result.action, sent, cfg.sleepIdleSec);
+  persistJudgeState(committed.state);
 
   Serial.printf("phase=%u rms=%.3f tilt=%.1f door=%d action=%u offset=%.3f sleep=%lu\n",
                 (unsigned)washerPhase, window.rms, window.tiltDeg,
                 washerDoorOpen(stats) ? 1 : 0, (unsigned)result.action,
-                offsetIntencity, (unsigned long)result.sleepSec);
+                offsetIntencity, (unsigned long)committed.sleepSec);
 
-  monotonicSec += result.sleepSec;
-  sleepmodeobj.gotosleep((int)result.sleepSec);
+  monotonicSec += committed.sleepSec;
+  sleepmodeobj.gotosleep((int)committed.sleepSec);
 }
 
 void waikeup(uint8_t phase) {
@@ -109,8 +114,13 @@ void waikeup(uint8_t phase) {
     if (!sleepmodeobj.updateLocalTime())
     {
       Discord.sendMessage("ごめんね。時刻がわからなかったよ", false);
+      network.disconnect_wifi();
     }else {
-      if(!sleepmodeobj.deepsleep(STERT_HOUR, END_HOUR, &monotonicSec) && phase == WASHER_IDLE) {
+      int hour = 0;
+      if (sleepmodeobj.localHour(hour) &&
+          shouldNightSleep(phase, hour, STERT_HOUR, END_HOUR)) {
+        sleepmodeobj.deepsleep(STERT_HOUR, END_HOUR, &monotonicSec);
+      } else if (phase == WASHER_IDLE) {
         Serial.println("深夜ではありません");
       }
       network.disconnect_wifi();
