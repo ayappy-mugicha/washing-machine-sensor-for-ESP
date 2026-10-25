@@ -23,6 +23,15 @@ bool SleepMode::updateLocalTime() {
     return true;
 }
 
+bool SleepMode::localHour(int& hour) {
+    struct tm timeinfo;
+    if (!getLocalTime(&timeinfo)) {
+        return false;
+    }
+    hour = timeinfo.tm_hour;
+    return true;
+}
+
 void SleepMode::gotosleep(int second){
     VibrationSensor6050 sensor;
     NetworkSystem network(SECRET_SSID, SECRET_PASSWORD);
@@ -46,16 +55,16 @@ bool SleepMode::deepsleep(int startHour, int endHour, uint32_t* monotonicSec) {
     int currentHour = timeinfo.tm_hour;
     uint64_t sleepTimeSec = 0;
 
-    // 深夜判定（19時以降 または 6時より前）
+    // 深夜判定（endHour 時以降、または startHour 時より前。本番の呼び出しは 18 時と 8 時）
     if (currentHour >= endHour || currentHour < startHour) {
         Serial.println("深夜モード：長時間スリープに入ります...");
         Discord.sendMessage("おねんねするねまた明日!!");
         
         if (currentHour >= endHour) {
-            // 今日の残り時間 + 明朝6時まで
+            // 今日の残り時間 + 明朝 startHour 時まで
             sleepTimeSec = ( (24 - currentHour) + startHour ) * 3600;
         } else {
-            // 今日の朝6時まで
+            // 今日の startHour 時まで
             sleepTimeSec = ( startHour - currentHour ) * 3600;
         }
         if (monotonicSec != nullptr) {
