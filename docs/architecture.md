@@ -6,7 +6,9 @@
 
 ## 全体図
 
-![洗濯機君のシステム構成。現場の洗濯機・MPU6050・XIAO ESP32C3・開発用 PC と、Wi-Fi 先の NTP および Discord](images/system-architecture.svg)
+開発記事に貼るときは [system-architecture.jpg](images/system-architecture.jpg)（2360×1520）を使ってください。編集用の原図は [system-architecture.svg](images/system-architecture.svg) です。
+
+![洗濯機君のシステム構成。現場の洗濯機・MPU6050・XIAO ESP32C3・開発用 PC と、Wi-Fi 先の NTP および Discord](images/system-architecture.jpg)
 
 同じ境界を Mermaid でも書いています。
 
