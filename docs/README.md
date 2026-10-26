@@ -2,6 +2,8 @@
 
 電池駆動の Seeed XIAO ESP32C3 が MPU6050 の振動を見て洗濯の開始・終了を推定し、干し忘れを Discord に通知するファームウェアです。連続動作ではなく、ディープスリープから起きて測って判定し、また眠るサイクルです。
 
+Qiita 投稿用テンプレート（例文と【書くこと】）は [qiita.md](qiita.md) です。本ファイルは定数・図・モジュールの正本です。
+
 ## セットアップ
 
 前提: [PlatformIO](https://platformio.org/)（CLI または VS Code 拡張）、ボードは Seeed XIAO ESP32C3、センサーは MPU6050（I2C アドレス `0x68`、SDA=GPIO6、SCL=GPIO7）。
