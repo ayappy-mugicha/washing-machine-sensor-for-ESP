@@ -70,7 +70,7 @@ inline WasherJudgeConfig washerJudgeDefaultConfig() {
   cfg.stopThreshold = 0.40f;
   cfg.startConfirm = 2;
   cfg.minWashSec = 25u * 60u;
-  cfg.minQuietSec = 12u * 60u;
+  cfg.minQuietSec = 15u * 60u;
   cfg.snoozeSec = 1800u;
   cfg.sleepIdleSec = 300u;
   cfg.sleepWashingSec = 300u;

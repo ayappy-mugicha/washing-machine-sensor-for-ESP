@@ -39,7 +39,7 @@ pio device monitor            # シリアル 115200
 1. センサーを洗濯機に固定し、電源を入れる。
 2. 初回起動時だけ Discord に「接続完了!お洗濯をしてるか見るね!」が飛ぶ。
 3. 以降はタイマー起床ごとに約 3 秒の振動窓（RMS）を測る。洗濯開始・終了そのものの Discord 通知は送らない。
-4. 開始は `START_TH` 超過が連続 `START_CONFIRM` 回、終了は最短運転時間のあと `STOP_TH` 未満が `MIN_QUIET_SEC` 続いたときだけ確定する。確定した時点で蓋が開いていれば干し済みにする。閉じていれば、窓の傾きが開蓋になるまで干し忘れを通知する。センサー窓の読み取りに失敗した起床では通知しない。
+4. 開始は `START_TH` 超過が連続 `START_CONFIRM` 回。最短運転時間のあと `STOP_TH` 未満になった最初の起床が t0（振動停止）で、この時点では通知しない。静穏が `MIN_QUIET_SEC` 続いたときだけ終了確定する。確定した時点で蓋が開いていれば干し済みにする。閉じていれば、その起床で初回の干し忘れを送り、以後は窓の傾きが開蓋になるまで 30 分おきに再通知する。センサー窓の読み取りに失敗した起床では通知しない。
 5. アイドルのとき、JST の 18 時以降〜8 時前は「おねんねするねまた明日!!」を送って翌朝まで寝る。
 
 ## 設定
@@ -55,11 +55,11 @@ pio device monitor            # シリアル 115200
 | `STOP_TH` | いいえ | `0.40` | 終了候補とみなす窓 RMS |
 | `START_CONFIRM` | いいえ | `2` | 開始確定に必要な連続起床回数 |
 | `MIN_WASH_SEC` | いいえ | `1500` | 終了判定を開始するまでの最短運転（25 分） |
-| `MIN_QUIET_SEC` | いいえ | `720` | 終了確定に必要な連続静穏（12 分） |
+| `MIN_QUIET_SEC` | いいえ | `900` | t0 から初回「干してね」までの連続静穏（15 分）。t0 自体は通知しない |
 | `openDoorDeg` | いいえ | `30` | 開蓋とみなす重力の傾き（度）。閉蓋時は Z が上。窓の成功サンプルの過半数でこの角度以上なら開蓋（要調整） |
 | `STERT_HOUR` | いいえ | `8` | 夜間スリープの起床時刻 |
 | `END_HOUR` | いいえ | `18` | 夜間スリープ開始時刻 |
-| スヌーズ間隔 | いいえ | `1800` 秒 | 干し忘れ再通知（RTC 単調秒、30 分） |
+| スヌーズ間隔 | いいえ | `1800` 秒 | 初回通知のあとの再通知間隔（RTC 単調秒、30 分） |
 | 振動窓 | いいえ | 60 × 50 ms | 約 3 秒の RMS / 平均 / ピーク / 傾き |
 | `BATT_ADC_PIN` | — | `A3` | バッテリ ADC。`getBatteryVoltage()` はあるが Discord には載せていない |
 
@@ -164,7 +164,7 @@ stateDiagram-v2
   Washing --> Washing: RMSがSTOP_TH以上、または最短運転時間未満
   Washing --> FinishCandidate: 最短運転後 RMSがSTOP_TH未満
   FinishCandidate --> Washing: RMSがSTOP_TH以上
-  FinishCandidate --> SnoozeWait: MIN_QUIET_SECの連続静穏かつ蓋は閉
+  FinishCandidate --> SnoozeWait: MIN_QUIET_SECの連続静穏かつ蓋は閉 初回の干してね
   FinishCandidate --> Idle: MIN_QUIET_SECかつ傾きの過半数で開蓋
   SnoozeWait --> SnoozeWait: 窓失敗は通知しない
   SnoozeWait --> SnoozeWait: ドア閉かつ1800秒経過でリマインド
@@ -226,6 +226,7 @@ sequenceDiagram
     ESP->>Discord: 洗濯物を干してくれたんだね!!ありがとう!!
     ESP->>ESP: Idle 3600秒睡眠 オフセットは更新しない
   else 蓋は閉
+    ESP->>Discord: お洗濯は終わってるみたいだよ!洗濯物を干してね!
     ESP->>ESP: phase SnoozeWait finishTimeSec 更新
     ESP->>ESP: gotosleep 300
   end
@@ -240,7 +241,7 @@ sequenceDiagram
       ESP->>ESP: 通知せず 300秒睡眠
     else 1800秒経過
       ESP->>Discord: お洗濯は終わってるみたいだよ!洗濯物を干してね!
-      ESP->>User: リマインド
+      ESP->>User: 再通知
       ESP->>ESP: finishTime 更新 300秒睡眠
     end
   end

@@ -91,6 +91,7 @@ WasherJudgeResult WasherJudge::step(const WasherJudgeState& state,
     out.state.quietSinceSec = 0;
     out.state.startCount = 0;
     out.sleepSec = cfg.sleepIdleSec;
+    out.action = WASHER_ACTION_REMIND_HANG;
   }
   return out;
 }

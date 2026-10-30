@@ -104,6 +104,7 @@ void test_spin_dry_alternating_rms_does_not_confirm_finish() {
 
 void test_long_quiet_after_min_wash_enters_snooze() {
   const WasherJudgeConfig cfg = washerJudgeDefaultConfig();
+  TEST_ASSERT_EQUAL_UINT32(15u * 60u, cfg.minQuietSec);
   WasherJudgeState state = idleState();
   state.phase = WASHER_WASHING;
   state.washStartSec = 0;
@@ -111,11 +112,46 @@ void test_long_quiet_after_min_wash_enters_snooze() {
   uint32_t now = cfg.minWashSec;
   WasherJudgeResult result = WasherJudge::step(state, windowRms(0.05f), now, cfg);
   TEST_ASSERT_EQUAL_UINT8(WASHER_FINISH_CANDIDATE, result.state.phase);
+  TEST_ASSERT_EQUAL_UINT8(WASHER_ACTION_NONE, result.action);
+  TEST_ASSERT_EQUAL_UINT32(now, result.state.quietSinceSec);
 
-  now += cfg.minQuietSec;
+  now += 300;
+  result = WasherJudge::step(result.state, windowRms(0.05f), now, cfg);
+  TEST_ASSERT_EQUAL_UINT8(WASHER_FINISH_CANDIDATE, result.state.phase);
+  TEST_ASSERT_EQUAL_UINT8(WASHER_ACTION_NONE, result.action);
+
+  now += 300;
+  result = WasherJudge::step(result.state, windowRms(0.05f), now, cfg);
+  TEST_ASSERT_EQUAL_UINT8(WASHER_FINISH_CANDIDATE, result.state.phase);
+  TEST_ASSERT_EQUAL_UINT8(WASHER_ACTION_NONE, result.action);
+
+  now += 300;
   result = WasherJudge::step(result.state, windowRms(0.05f), now, cfg);
   TEST_ASSERT_EQUAL_UINT8(WASHER_SNOOZE_WAIT, result.state.phase);
+  TEST_ASSERT_EQUAL_UINT8(WASHER_ACTION_REMIND_HANG, result.action);
   TEST_ASSERT_EQUAL_UINT32(now, result.state.finishTimeSec);
+
+  now += cfg.snoozeSec;
+  result = WasherJudge::step(result.state, windowRms(0.05f), now, cfg);
+  TEST_ASSERT_EQUAL_UINT8(WASHER_SNOOZE_WAIT, result.state.phase);
+  TEST_ASSERT_EQUAL_UINT8(WASHER_ACTION_REMIND_HANG, result.action);
+}
+
+void test_vibration_resume_before_first_remind_resets_t0() {
+  const WasherJudgeConfig cfg = washerJudgeDefaultConfig();
+  WasherJudgeState state = idleState();
+  state.phase = WASHER_WASHING;
+  state.washStartSec = 0;
+
+  uint32_t now = cfg.minWashSec;
+  WasherJudgeResult result = WasherJudge::step(state, windowRms(0.05f), now, cfg);
+  TEST_ASSERT_EQUAL_UINT8(WASHER_FINISH_CANDIDATE, result.state.phase);
+  TEST_ASSERT_EQUAL_UINT8(WASHER_ACTION_NONE, result.action);
+
+  now += 300;
+  result = WasherJudge::step(result.state, windowRms(1.1f), now, cfg);
+  TEST_ASSERT_EQUAL_UINT8(WASHER_WASHING, result.state.phase);
+  TEST_ASSERT_EQUAL_UINT32(0, result.state.quietSinceSec);
   TEST_ASSERT_EQUAL_UINT8(WASHER_ACTION_NONE, result.action);
 }
 
@@ -266,6 +302,7 @@ int main(int argc, char **argv) {
   RUN_TEST(test_door_open_during_wash_does_not_finish);
   RUN_TEST(test_spin_dry_alternating_rms_does_not_confirm_finish);
   RUN_TEST(test_long_quiet_after_min_wash_enters_snooze);
+  RUN_TEST(test_vibration_resume_before_first_remind_resets_t0);
   RUN_TEST(test_finish_confirm_with_door_open_goes_idle);
   RUN_TEST(test_snooze_does_not_fire_when_finish_time_is_in_the_future);
   RUN_TEST(test_snooze_reminds_after_elapsed_seconds);
