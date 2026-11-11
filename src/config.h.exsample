@@ -1,8 +1,21 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-static constexpr const char* SECRET_SSID="your-ssid";
-static constexpr const char* SECRET_PASSWORD="your-password";
+// 文化祭デモ用 config.h テンプレート
+// この内容で src/config.h を作る（既存の config.h.exsample に MQTT 分を追加したもの）。
+// ★ SECRET_PASSWORD と DISCORD_WEBHOOK は実値を Git にコミットしないこと。
 
-static constexpr const char* DISCORD_WEBHOOK="your-discord-webhook-url";
+// --- Wi-Fi: 当日PCのモバイルホットスポットの SSID / パスワード ---
+static constexpr const char* SECRET_SSID = "your-hotspot-ssid";
+static constexpr const char* SECRET_PASSWORD = "your-hotspot-password";
+
+// --- Discord: デモでは既定で無効（demo_mqtt.cpp の DEMO_USE_DISCORD 0）。
+//     併用する場合のみ実URLを入れてフラグを 1 にする ---
+static constexpr const char* DISCORD_WEBHOOK = "your-discord-webhook-url";
+
+// --- MQTT: ブローカーは当日PC（Windowsホットスポットの標準IP） ---
+static constexpr const char* MQTT_BROKER_IP = "192.168.137.1";
+static constexpr int         MQTT_BROKER_PORT = 1883;
+static constexpr const char* MQTT_CLIENT_ID = "sentakuki-esp32";
+
 #endif
