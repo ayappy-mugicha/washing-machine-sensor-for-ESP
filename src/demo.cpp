@@ -51,6 +51,7 @@
 #include <VibrationSensor6050.h>
 #include <NetworkSystem.h>
 #include <DemoVibrationJudge.h>
+#include <DemoDoorJudge.h>
 
 #define DEMO_USE_DISCORD 0
 
@@ -79,8 +80,7 @@ float offsetIntensity = 0;
 DemoVibrationState judgeState;
 
 // 蓋判定の状態（2窓連続で一致したら確定＝チャタリング防止）
-bool doorOpenConfirmed = false;   // 確定した蓋状態
-bool doorCandidate = false;       // 候補（前窓の生判定）
+DemoDoorState doorState = {false, false};
 bool washFinished = false;        // finished を表示中か（リセット判定用）
 unsigned long lastMqttRetryMs = 0;
 
@@ -109,7 +109,7 @@ void mqttEnsureConnected() {
   if (mqtt.connect(MQTT_CLIENT_ID)) {
     Serial.println("mqtt connected");
     // 接続直後に自分の知っている状態を流し直す
-    mqttPublish(TOPIC_DOOR_STATE, doorOpenConfirmed ? "open" : "closed", true);
+    mqttPublish(TOPIC_DOOR_STATE, doorState.confirmedOpen ? "open" : "closed", true);
     mqttPublish(TOPIC_WASH_STATE,
                 judgeState.phase == DEMO_VIBRATING ? "running"
                 : washFinished                     ? "finished"
@@ -153,12 +153,13 @@ void loop() {
 
   // ---- 蓋判定（振動していない時だけ有効） --------------------------------
   // 振動中は加速度が荒れて傾きが信用できないため、本番同様に判定しない。
+  bool rawOpen = false;
   if (window.ok && judgeState.phase == DEMO_IDLE) {
-    const bool raw = rawDoorOpen(window);
-    if (raw == doorCandidate && raw != doorOpenConfirmed) {
-      // 2窓連続で同じ生判定 → 確定
-      doorOpenConfirmed = raw;
-      if (doorOpenConfirmed) {
+    rawOpen = rawDoorOpen(window);
+    const DemoDoorResult door = demoDoorStep(doorState, rawOpen);
+    doorState = door.state;
+    if (door.changed) {
+      if (doorState.confirmedOpen) {
         mqttPublish(TOPIC_DOOR_STATE, "open", true);
         mqttPublish(TOPIC_EVENT, "door_opened", false);
       } else {
@@ -171,13 +172,17 @@ void loop() {
         }
       }
     }
-    doorCandidate = raw;
   }
 
-  // ---- 蓋が開いている間は振動判定をしない（誤判定とオフセット破壊の防止）
-  if (doorOpenConfirmed) {
-    Serial.printf("door=open (judge paused) tilt=%.1f open=%d/%d\n",
-                  window.tiltDeg, window.openCount, window.successCount);
+  // ---- 蓋が開いている間／開きかけの間は振動判定をしない ------------------
+  // 確定前でも生判定が「開」の窓で振動判定を走らせると、rms 高値で START
+  // して phase が DEMO_VIBRATING に移り、蓋判定（IDLE の時だけ）の場を
+  // 失って door が永遠に確定しなくなる。そのため未確定でも抑止する。
+  if (doorState.confirmedOpen || rawOpen) {
+    Serial.printf("door=%s (judge paused) tilt=%.1f open=%d/%d raw=%d\n",
+                  doorState.confirmedOpen ? "open" : "candidate",
+                  window.tiltDeg, window.openCount, window.successCount,
+                  rawOpen ? 1 : 0);
     return;
   }
 
@@ -206,9 +211,10 @@ void loop() {
 #endif
   }
 
-  Serial.printf("phase=%u rms=%.3f offset=%.3f tilt=%.1f door=%d action=%u\n",
+  Serial.printf("phase=%u rms=%.3f offset=%.3f tilt=%.1f door=%d action=%u open=%d/%d rawdoor=%d\n",
                 (unsigned)judgeState.phase, window.rms, offsetIntensity,
-                window.tiltDeg, doorOpenConfirmed ? 1 : 0,
-                (unsigned)result.action);
+                window.tiltDeg, doorState.confirmedOpen ? 1 : 0,
+                (unsigned)result.action, window.openCount,
+                window.successCount, rawOpen ? 1 : 0);
 }
 
